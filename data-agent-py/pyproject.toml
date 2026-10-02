@@ -1,0 +1,22 @@
+[project]
+name = "data-agent-py"
+version = "0.1.0"
+description = "data-agent 的 Python 重写版（阶段 0：A2A 协议骨架）"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    # A2A 协议：服务端路由、请求处理器、任务存储、消息类型定义全在里面。
+    # [fastapi] extra 会带上 fastapi + sse-starlette，这个版本的 SDK
+    # 是以 FastAPI 形态提供 HTTP 服务的，缺了它 a2a.server.routes 导入不了。
+    "a2a-sdk[fastapi]>=1.2",
+    # ASGI 服务器
+    "uvicorn[standard]>=0.30",
+    # 读取 .env
+    "python-dotenv>=1.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

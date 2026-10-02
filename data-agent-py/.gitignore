@@ -1,0 +1,11 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+# pip install -e . 生成的构建产物，不该进仓库
+*.egg-info/
+build/
+dist/
+.env
+.idea/
+.pytest_cache/
