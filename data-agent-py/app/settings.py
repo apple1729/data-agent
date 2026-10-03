@@ -34,6 +34,11 @@ PG_DATABASE = os.getenv("PG_DATABASE", "data_agent")
 PG_USER = os.getenv("PG_USER", "postgres")
 PG_PASSWORD = os.getenv("PG_PASSWORD", "postgres")
 
+# SQLAlchemy 用的连接串。postgresql+psycopg 表示用 psycopg3 这个驱动。
+DATABASE_URL = (
+    f"postgresql+psycopg://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DATABASE}"
+)
+
 
 # ---------- 大模型 / 向量（阶段 3 用）----------
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
@@ -43,3 +48,9 @@ DASHSCOPE_BASE_URL = os.getenv(
 CHAT_MODEL = os.getenv("CHAT_MODEL", "deepseek-v4-pro")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-v4")
 EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "1024"))
+
+# DashScope 的 text-embedding-v4 一次请求最多处理 10 条文本，超过会报错
+EMBEDDING_BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", "10"))
+
+# 数据文件位置（自包含，不依赖 Java 项目）
+DATA_DIR = PROJECT_ROOT / "data" / "bird"

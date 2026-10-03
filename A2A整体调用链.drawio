@@ -1,0 +1,92 @@
+<mxfile host="app.diagrams.net" modified="2026-09-27T00:00:00.000Z" agent="ChatGPT" version="24.7.17">
+  <diagram id="a2a-flow" name="A2A整体调用链">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="A2A 请求 → GraphAgentExecutor → StateGraph → SSE/JSON 响应" style="text;html=1;strokeColor=none;fillColor=none;fontSize=24;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="50" y="25" width="900" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="client" value="前端 / A2A Client&#xa;sendMessageStream()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="120" width="190" height="75" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="request" value="HTTP POST /a2a/jsonrpc&#xa;JSON-RPC 2.0&#xa;method = message/stream" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="310" y="120" width="220" height="75" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="controller" value="A2AController.handleRequest(body)&#xa;&#xa;① 解析 JSON&#xa;② 读取 method&#xa;③ 创建 ServerCallContext&#xa;④ 判断流式 / 非流式" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="590" y="95" width="250" height="125" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="decision" value="streaming?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=15;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="115" width="130" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="nonstream" value="非流式&#xa;processNonStreamingRequest()&#xa;&#xa;message/send → onMessageSend&#xa;tasks/get / cancel / pushNotification..." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="55" width="270" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="stream" value="流式&#xa;processStreamingRequest()&#xa;&#xa;message/stream → onMessageSendStream&#xa;tasks/resubscribe → onResubscribeToTask" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="205" width="270" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="handler" value="SDK JSONRPCHandler&#xa;↓&#xa;DefaultRequestHandler&#xa;↓&#xa;AgentExecutor.execute(context, eventQueue)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="730" y="285" width="300" height="105" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="executor" value="GraphAgentExecutor.execute()&#xa;&#xa;取 Message / EventQueue&#xa;创建 TaskUpdater&#xa;编译 StateGraph&#xa;MemorySaver + HUMAN_FEEDBACK 中断" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="650" y="445" width="460" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="branch" value="taskId 已存在？" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="790" y="625" width="180" height="105" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="newtask" value="新任务分支&#xa;&#xa;newTask(message)&#xa;→ EventQueue.enqueueEvent()&#xa;→ 初始 state 写入 input / databaseId&#xa;→ compiledGraph.stream(initialState)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="270" y="780" width="360" height="135" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="resume" value="恢复任务分支&#xa;&#xa;taskStore 查到 task&#xa;→ updateState()&#xa;→ 注入 confirmationApproved / Feedback&#xa;→ compiledGraph.stream(null, resumedConfig)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="780" width="360" height="135" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="graph" value="StateGraph&#xa;&#xa;各 Agent / Graph Node 执行&#xa;Planner / Supervisor / Tool 等节点按图运行" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=15;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="800" width="300" height="115" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="output" value="handleNodeOutput()&#xa;&#xa;GRAPH_NODE_STREAMING → TextPart&#xa;GRAPH_NODE_FINISHED / 其它 → DataPart&#xa;TaskUpdater → EventQueue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="650" y="975" width="400" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="sse" value="SSE&#xa;emitter.send(event.data(json))&#xa;逐帧推回前端" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="975" width="270" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="end" value="前端收到 A2A Artifact / JSON-RPC Response" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="1140" width="300" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- edges -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="1" source="client" target="request"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="1" source="request" target="controller"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;" edge="1" parent="1" source="controller" target="decision"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" value="否" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="decision" target="nonstream"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" value="是" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="decision" target="stream"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="nonstream" target="handler"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="stream" target="handler"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="handler" target="executor"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="executor" target="branch"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e10" value="否" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="branch" target="newtask"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e11" value="是" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="branch" target="resume"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="newtask" target="graph"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="resume" target="graph"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="graph" target="output"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="output" target="sse"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="sse" target="end"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,13 +1,16 @@
 """A2A 执行器：收到消息后干什么。
 
 这是整个 A2A 层唯一有业务逻辑的地方，对应 Java 版的 GraphAgentExecutor。
-**阶段 0 里它是假的**：不发真结果，只按真实图的节点顺序发一串占位产物，
-目的是把「协议格式」这条路走通。
 
-等阶段 2 接上图之后，这里面的 for 循环会被换成真正的
-`async for chunk in graph.astream(...)`，其余结构不变。
+【阶段 2 的变化】
+  之前：一个写死的 for 循环，按顺序发假产物。
+  现在：真跑 LangGraph 的图，把每个节点的输出转发出去。
+
+  节点的内部逻辑目前还是假的（阶段 3 才填），但**图的执行是真的**——
+  分支、循环、状态传递全都在真跑。
 """
 
+import json
 import logging
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
@@ -16,7 +19,9 @@ from a2a.server.tasks import TaskUpdater
 from a2a.types import Part, Task, TaskState, TaskStatus
 from a2a.utils.errors import UnsupportedOperationError
 
-from app.graph.node_names import END_ARTIFACT_NAME, GraphNode
+from app.graph.builder import compile_graph
+from app.graph.node_names import END_ARTIFACT_NAME
+from app.graph.state import StateKey
 
 logger = logging.getLogger(__name__)
 
@@ -29,22 +34,12 @@ OUTPUT_STREAMING = "GRAPH_NODE_STREAMING"
 OUTPUT_FINISHED = "GRAPH_NODE_FINISHED"
 
 
-# 假装跑一遍流水线，顺序照抄真实图的走向
-FAKE_FLOW = [
-    GraphNode.EVIDENCE_RECALL,
-    GraphNode.SCHEMA_RECALL,
-    GraphNode.TABLE_RELATION,
-    GraphNode.FEASIBILITY_ASSESSMENT,
-    GraphNode.PLANNER,
-    GraphNode.HUMAN_FEEDBACK,
-    GraphNode.SUPERVISOR,
-    GraphNode.SQL_GENERATION,
-    GraphNode.SQL_EXECUTION,
-    GraphNode.REPORT_GENERATION,
-]
-
-
 class GraphAgentExecutor(AgentExecutor):
+
+    def __init__(self) -> None:
+        # 图编译一次就够，不用每个请求都编。
+        # 阶段 5 加检查点后这里要改成带 checkpointer 的编译。
+        self.graph = compile_graph()
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         # ---- 1 新任务：先建 Task 并塞进事件队列 ----
@@ -65,39 +60,37 @@ class GraphAgentExecutor(AgentExecutor):
         await updater.submit()      # 告诉客户端：收到了
         await updater.start_work()  # 告诉客户端：开始干了
 
-        # ---- 2) 取输入 ----
-        #取的是用户问题和元数据
-        # 真实现里这两样东西后面要交给图当初始 state
+        # ---- 2) 组装图的初始状态 ----
         user_input = context.get_user_input()
         metadata = context.metadata or {}
+        database_id = metadata.get("databaseId", "")
         logger.info(
             "收到请求 input=%r databaseId=%r task_id=%s",
             user_input,
-            metadata.get("databaseId"),
+            database_id,
             context.task_id,
         )
 
-        # ---- 3) 按节点顺序往外发产物 ----
-        for node_name in FAKE_FLOW:
-            # 第一个节点演示「流式分片 + 收尾」两段式：
-            # 中间几次发 STREAMING（前端显示进行中），最后发 FINISHED 收尾。
-            # 真实现里 LLM 逐字输出就对应这一段。
-            if node_name == GraphNode.EVIDENCE_RECALL:
-                for chunk in ("[假数据] 正在改写问题…", "[假数据] 正在检索术语…"):
-                    await updater.add_artifact(
-                        parts=[Part(text=chunk)],
-                        name=node_name,
-                        metadata={"outputType": OUTPUT_STREAMING},
-                    )
+        initial_state = {
+            StateKey.USER_INPUT: user_input,
+            StateKey.DATABASE_ID: database_id,
+        }
 
-            await updater.add_artifact(
-                #向前端推送一个“产物/消息”。
-                parts=[
-                    Part(text=f"[假数据] {node_name} 跑完了。收到的输入是：{user_input}")
-                ],
-                name=node_name,
-                metadata={"outputType": OUTPUT_FINISHED},
-            )
+        # ---- 3) 跑图，每跑完一个节点就往外发一条产物 ----
+        # stream_mode="updates" 的返回形状：{节点名: 这个节点写入的字段}
+        try:
+            async for chunk in self.graph.astream(initial_state, stream_mode="updates"):
+                for node_name, update in chunk.items():
+                    await updater.add_artifact(
+                        parts=[Part(text=_summarize(update))],
+                        name=node_name,
+                        metadata={"outputType": OUTPUT_FINISHED},
+                    )
+        except Exception:
+            # 图里任何一个节点抛异常，都要让客户端知道（否则前端会一直转圈）
+            logger.exception("图执行失败")
+            await updater.fail()
+            return
 
         # ---- 4) 发结束信号 ----
         # 前端认这个约定：收到 name == "__END__" 的产物就把所有卡片收尾。
@@ -115,3 +108,19 @@ class GraphAgentExecutor(AgentExecutor):
         # Java 版这里也是空实现，阶段 0 先照旧
         logger.warning("cancel 尚未实现")
         raise UnsupportedOperationError()
+
+
+def _summarize(update: dict | None) -> str:
+    """把节点写回状态的内容压成一段可读文本，作为卡片上显示的内容。
+
+    阶段 3 各节点会有自己的展示格式，那时候这个方法基本就用不上了。
+    """
+    if not update:
+        return "（无输出）"
+    lines = []
+    for key, value in update.items():
+        text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+        if len(text) > 200:
+            text = text[:200] + "…"
+        lines.append(f"{key}: {text}")
+    return "\n".join(lines)

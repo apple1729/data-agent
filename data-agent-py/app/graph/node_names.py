@@ -29,7 +29,8 @@ class GraphNode:
     SUPERVISOR = "SUPERVISOR_NODE"                          # 主管调度：决定下一步派谁干活（会转圈，有轮次上限）
     SQL_GENERATION = "SQL_GENERATE_NODE"                    # 生成 SQL：写查询语句
     SQL_EXECUTION = "SQL_EXECUTE_NODE"                      # 执行 SQL：真去数据库里跑，拿结果
-    PYTHON_GENERATION = "PYTHON_GENERATE_NODE"              # 生成分析代码：需要统计/画图时写 Python
+    PYTHON_GENERATION = "PYTHON_GENERATE_NODE" 
+                 # 生成分析代码：需要统计/画图时写 Python
     PYTHON_EXECUTION = "PYTHON_EXECUTE_NODE"                # 执行分析代码：丢进 Docker 沙箱跑
     PYTHON_ANALYSIS = "PYTHON_ANALYZE_NODE"                 # 解读分析结果：把跑出来的数字翻译成人话
     REPORT_GENERATION = "REPORT_GENERATOR_NODE"             # 生成报告：汇总成一份完整分析报告（终点）

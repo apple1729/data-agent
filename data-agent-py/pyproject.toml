@@ -12,6 +12,13 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     # 读取 .env
     "python-dotenv>=1.0",
+    # 数据库：SQLAlchemy 管模型和查询，psycopg 是 PostgreSQL 驱动
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.1",
+    # 调 DashScope 的 embedding 接口（OpenAI 兼容模式）
+    "openai>=1.40",
+    # 图编排框架：把 13 个节点连成带分支和循环的图（对应 Java 的 Spring AI Alibaba Graph）
+    "langgraph>=0.2",
 ]
 
 [build-system]
@@ -19,4 +26,4 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "scripts*"]
