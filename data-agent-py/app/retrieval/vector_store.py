@@ -111,6 +111,22 @@ def count() -> int:
         return conn.execute(text("SELECT count(*) FROM vector_store")).scalar_one()
 
 
+def search_by_text(
+    query: str,
+    database_id: str,
+    vector_type: str,
+    top_k: int = 4,
+) -> list[dict]:
+    """先用文本算向量，再检索。
+
+    这是节点里最常用的入口——省得每个节点都写"算向量 + 检索"两行。
+    """
+    from app.retrieval import embeddings
+
+    query_vector = embeddings.embed_one(query)
+    return search(query_vector, database_id, vector_type, top_k)
+
+
 def _to_vector_literal(values: list[float]) -> str:
     """把 Python 列表转成 pgvector 认的字符串格式：[1.0,2.0,...]"""
     return "[" + ",".join(f"{v:.8f}" for v in values) + "]"
