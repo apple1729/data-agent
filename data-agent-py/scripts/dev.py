@@ -300,6 +300,23 @@ def cmd_graph(args) -> None:
         if key not in final:
             continue
         value = final[key]
+
+        # EXECUTION_OUTPUT 是个大字典（每步一条），整体打印会被截断、
+        # 把后面的错误信息埋掉。这里逐条打印，每条各自截断。
+        if key == StateKey.EXECUTION_OUTPUT and isinstance(value, dict):
+            print(f"\n--- {key}（共 {len(value)} 条）---")
+            for sub_key, sub_value in value.items():
+                text = (
+                    sub_value
+                    if isinstance(sub_value, str)
+                    else json.dumps(sub_value, ensure_ascii=False, default=str)
+                )
+                limit = 900 if "error" in sub_key or "skipped" in sub_key else 200
+                if not args.full and len(text) > limit:
+                    text = text[:limit] + f"...(共 {len(text)} 字符)"
+                print(f"  [{sub_key}] {text}")
+            continue
+
         text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
         if not args.full and len(text) > 500:
             text = text[:500] + f"...(共 {len(text)} 字符)"

@@ -52,6 +52,16 @@ EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "1024"))
 # DashScope 的 text-embedding-v4 一次请求最多处理 10 条文本，超过会报错
 EMBEDDING_BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", "10"))
 
+# ---------- Python 沙箱（阶段 4 用）----------
+# 执行大模型生成的 Python 代码时用的 Docker 镜像。
+# 用项目自带的精简镜像（约 250MB，含 pandas/numpy/scipy），
+# 想换回原项目的完整版就改成 continuumio/anaconda3:latest。
+PYTHON_SANDBOX_IMAGE = os.getenv(
+    "DATA_AGENT_PYTHON_DOCKER_IMAGE", "data-agent-python-sandbox:latest"
+)
+PYTHON_SANDBOX_MEMORY = os.getenv("DATA_AGENT_PYTHON_MEMORY_LIMIT", "512m")
+PYTHON_SANDBOX_TIMEOUT = int(os.getenv("DATA_AGENT_PYTHON_TIMEOUT", "60"))
+
 # 数据文件位置（自包含，不依赖 Java 项目）
 DATA_DIR = PROJECT_ROOT / "data" / "bird"
 # BIRD 的物理数据库目录（11 个 SQLite 文件，执行 SQL 时用）
