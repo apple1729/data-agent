@@ -9,3 +9,25 @@ dist/
 .env
 .idea/
 .pytest_cache/
+
+# =========================
+# BIRD 数据集的大文件
+# =========================
+# 物理数据库（11 个 SQLite，解压后约 1.4 GB）——按需本地下载，绝不入库。
+# 注意：根目录 .gitignore 里也有一条同样的规则，但它写的是
+# data-agent-backend/ 下的路径，管不到我们这里，所以必须再写一遍。
+data/bird/dev_databases/
+data/bird/dev_20240627/
+
+# 下载下来的压缩包（各 330 MB）
+data/bird/*.zip
+
+# 解压 zip 时带出来的 macOS 垃圾文件（__MACOSX 和 .DS_Store）
+__MACOSX/
+.DS_Store
+
+# 保留的小文件（约 1 MB，是导入脚本的输入，需要跟着仓库走）：
+#   data/bird/dev.json            1534 道题
+#   data/bird/dev_tables.json     11 个库的表结构
+#   data/bird/dev_tied_append.json
+#   data/bird/dev_gold_dump.sql

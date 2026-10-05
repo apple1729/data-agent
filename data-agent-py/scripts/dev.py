@@ -248,6 +248,70 @@ def cmd_chain(args) -> None:
         print(f"{text}")
 
 
+def cmd_graph(args) -> None:
+    """跑完整的图（含循环和条件边），模拟真实执行。
+
+    这是最接近"前端发一个请求"的测试方式——除了不经过 A2A 协议层。
+    """
+    from app.graph.builder import compile_graph
+
+    graph = compile_graph()
+    initial = {
+        StateKey.USER_INPUT: args.question,
+        StateKey.DATABASE_ID: args.database,
+    }
+
+    print(f"问题：{args.question}")
+    print(f"库名：{args.database}")
+    print()
+    print("节点执行顺序：")
+
+    async def run():
+        order = []
+        state: dict = {}
+        # 同时订阅两种流：
+        #   updates → 每一步是哪个节点跑的（用来打印执行顺序）
+        #   values  → 每一步之后的完整状态（最后一条就是最终状态）
+        # 这样只需要跑一遍图。之前用 astream + ainvoke 会跑两遍，白白多花一倍钱。
+        async for mode, chunk in graph.astream(
+            initial, stream_mode=["updates", "values"]
+        ):
+            if mode == "updates":
+                for node_name in chunk:
+                    order.append(node_name)
+                    print(f"  {len(order):2}. {node_name}")
+            else:
+                state = chunk
+        return state, order
+
+    final, order = asyncio.run(run())
+
+    print()
+    print(f"共 {len(order)} 步")
+    print()
+    print("=" * 20, "最终状态摘要", "=" * 20)
+    for key in (
+        StateKey.REWRITE_QUERY,
+        StateKey.SQL_GENERATION_RESULT,
+        StateKey.SQL_EXECUTION_RESULT,
+        StateKey.EXECUTION_OUTPUT,
+        StateKey.FEASIBILITY_RESULT,
+    ):
+        if key not in final:
+            continue
+        value = final[key]
+        text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
+        if not args.full and len(text) > 500:
+            text = text[:500] + f"...(共 {len(text)} 字符)"
+        print(f"\n--- {key} ---")
+        print(text)
+
+    report = final.get(StateKey.REPORT_RESULT)
+    if report:
+        print(f"\n--- {StateKey.REPORT_RESULT}（{len(report)} 字符）---")
+        print(report if args.full else report[:1200] + "\n...(加 --full 看全部)")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="开发调试工具")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -273,6 +337,12 @@ def main() -> None:
     p_chain.add_argument("names", nargs="+", help="节点名，按执行顺序写")
     p_chain.add_argument("--full", action="store_true", help="不截断输出")
     p_chain.set_defaults(func=cmd_chain)
+
+    p_graph = sub.add_parser("graph", help="跑完整的图（含循环）")
+    p_graph.add_argument("question", help="自然语言问题")
+    p_graph.add_argument("--db", dest="database", default=DEFAULT_DB, help="库名")
+    p_graph.add_argument("--full", action="store_true", help="不截断输出")
+    p_graph.set_defaults(func=cmd_graph)
 
     p_doctor = sub.add_parser("doctor", help="体检：检查数据库/embedding/检索是否正常")
     p_doctor.set_defaults(func=cmd_doctor)

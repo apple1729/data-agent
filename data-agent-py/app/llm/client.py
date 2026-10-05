@@ -32,8 +32,15 @@ def _get_client() -> OpenAI:
     return _client
 
 
-def chat(prompt: str, system: str | None = None) -> str:
+def chat(prompt: str | None = None, system: str | None = None) -> str:
     """发一次对话请求，返回模型输出的纯文本。
+
+    三种用法：
+        chat("问题")                     → 只发一条 user 消息
+        chat("问题", system="你是助手")   → system + user 两条
+        chat(system=长提示词)            → 只发一条 system 消息
+                                          （SQL 生成节点就是这种用法，
+                                           Java 里写的是 .system(sqlPrompt)）
 
     【enable_thinking=False 是必须的】
       Java 版每个 LLM 调用都带这个参数。不关掉"思考模式"的话，
@@ -43,7 +50,10 @@ def chat(prompt: str, system: str | None = None) -> str:
     messages: list[dict] = []
     if system:
         messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
+    if prompt:
+        messages.append({"role": "user", "content": prompt})
+    if not messages:
+        raise ValueError("chat() 至少要有一个 prompt 或 system")
 
     response = _get_client().chat.completions.create(
         model=settings.CHAT_MODEL,

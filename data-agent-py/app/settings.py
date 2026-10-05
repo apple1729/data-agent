@@ -54,3 +54,5 @@ EMBEDDING_BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", "10"))
 
 # 数据文件位置（自包含，不依赖 Java 项目）
 DATA_DIR = PROJECT_ROOT / "data" / "bird"
+# BIRD 的物理数据库目录（11 个 SQLite 文件，执行 SQL 时用）
+BIRD_DB_DIR = DATA_DIR / "dev_databases"

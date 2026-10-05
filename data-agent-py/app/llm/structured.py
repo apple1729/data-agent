@@ -34,10 +34,19 @@ def format_hint(model: type[BaseModel]) -> str:
 def parse(text: str, model: type[T]) -> T:
     """把模型输出解析成对象。
 
-    容错处理：模型偶尔会不自觉地在 JSON 外面加解释文字或者 ``` 包裹，
-    这里都剥掉。
+    【为什么要容错】
+      模型输出的 JSON 经常不干净，实测遇到过的：
+        · 外面包着 ```json ... ``` 或解释文字
+        · 最后一个元素后面多一个逗号（尾逗号）
+      这些都让严格 JSON 解析器报错。Java 版遇到同样问题会走兜底逻辑，
+      在 Python 这边如果直接崩掉，整张图就挂了——所以这里做两层容错。
     """
-    return model.model_validate_json(_extract_json(text))
+    payload = _extract_json(text)
+    try:
+        return model.model_validate_json(payload)
+    except Exception:
+        # 退一步：清理掉尾逗号再试一次
+        return model.model_validate_json(_strip_trailing_commas(payload))
 
 
 def _extract_json(text: str) -> str:
@@ -53,3 +62,11 @@ def _extract_json(text: str) -> str:
     if start >= 0 and end > start:
         return value[start : end + 1]
     return value
+
+
+def _strip_trailing_commas(text: str) -> str:
+    """去掉 `,}` 和 `,]` 这种多余逗号。
+
+    模型很爱在最后一个元素后面多写一个逗号，标准 JSON 不允许。
+    """
+    return re.sub(r",(\s*[}\]])", r"\1", text)
