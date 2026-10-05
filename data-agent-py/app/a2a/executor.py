@@ -18,6 +18,7 @@ from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import Part, Task, TaskState, TaskStatus
 from a2a.utils.errors import UnsupportedOperationError
+from google.protobuf import json_format
 
 from app.graph.builder import compile_graph
 from app.graph.node_names import END_ARTIFACT_NAME
@@ -62,7 +63,13 @@ class GraphAgentExecutor(AgentExecutor):
 
         # ---- 2) 组装图的初始状态 ----
         user_input = context.get_user_input()
-        metadata = context.metadata or {}
+        # ★ 注意：要读 context.message.metadata（消息级），不是 context.metadata（请求级）。
+        #   A2A 协议里 metadata 有两处：
+        #     params.metadata          → 整个请求的元数据（这里是空的）
+        #     params.message.metadata  → 这条消息自己的元数据（databaseId 在这里）
+        #   前端把 databaseId 放在了 message 里，Java 版读的也是 message.getMetadata()。
+        message = context.message
+        metadata = _metadata_to_dict(message.metadata if message else None)
         database_id = metadata.get("databaseId", "")
         logger.info(
             "收到请求 input=%r databaseId=%r task_id=%s",
@@ -89,7 +96,8 @@ class GraphAgentExecutor(AgentExecutor):
         except Exception:
             # 图里任何一个节点抛异常，都要让客户端知道（否则前端会一直转圈）
             logger.exception("图执行失败")
-            await updater.fail()
+            # 注意方法名是 failed() 不是 fail()，SDK 里的命名不太常规
+            await updater.failed()
             return
 
         # ---- 4) 发结束信号 ----
@@ -119,8 +127,35 @@ def _summarize(update: dict | None) -> str:
         return "（无输出）"
     lines = []
     for key, value in update.items():
-        text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+        # default=str 不能省：节点返回值里常有 UUID、datetime 这类
+        # json 不认识的类型（比如向量检索结果里的 id 就是 UUID 对象），
+        # 不加会直接抛 TypeError，而且报错信息不会告诉你是哪个字段。
+        text = (
+            value
+            if isinstance(value, str)
+            else json.dumps(value, ensure_ascii=False, default=str)
+        )
         if len(text) > 200:
             text = text[:200] + "…"
         lines.append(f"{key}: {text}")
     return "\n".join(lines)
+
+
+def _metadata_to_dict(metadata) -> dict:
+    """把 A2A 消息的 metadata 转成普通 Python 字典。
+
+    【为什么需要这个转换】
+      它看起来像字典，其实**不是**——是 protobuf 的 Struct 对象，
+      没有 `.get()` 方法。直接写 metadata.get("x") 会报
+      `AttributeError: get`，报错信息只有两个字，很难看出原因。
+      SDK 内部也是用 MessageToDict 转的，这里照做。
+    """
+    if not metadata:
+        return {}
+    if isinstance(metadata, dict):
+        return metadata
+    try:
+        return json_format.MessageToDict(metadata)
+    except Exception:  # noqa: BLE001
+        logger.warning("无法解析消息的 metadata（类型 %s）", type(metadata).__name__)
+        return {}
